@@ -137,5 +137,5 @@ def train_agent(
     return result, policy.policies[agents[1]]
 
 # train the agent and watch its performance in a match!
-result, agent = train_agent()
-#watch(args, agent)
+if __name__ == "__main__":
+    result, agent = train_agent()

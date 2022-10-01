@@ -26,6 +26,7 @@ from tianshou.trainer import offpolicy_trainer
 from tianshou.utils import TensorboardLogger
 from tianshou.utils.net.common import Net
 
+
 def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=1626)
@@ -61,43 +62,45 @@ def get_parser() -> argparse.ArgumentParser:
         default=False,
         action='store_true',
         help='no training, '
-        'watch the play of pre-trained models'
+             'watch the play of pre-trained models'
     )
     parser.add_argument(
         '--agent-id',
         type=int,
         default=2,
         help='the learned agent plays as the'
-        ' agent_id-th player. Choices are 1 and 2.'
+             ' agent_id-th player. Choices are 1 and 2.'
     )
     parser.add_argument(
         '--resume-path',
         type=str,
         default='',
         help='the path of agent pth file '
-        'for resuming from a pre-trained agent'
+             'for resuming from a pre-trained agent'
     )
     parser.add_argument(
         '--opponent-path',
         type=str,
         default='',
         help='the path of opponent agent pth file '
-        'for resuming from a pre-trained agent'
+             'for resuming from a pre-trained agent'
     )
     parser.add_argument(
         '--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu'
     )
     return parser
 
+
 def get_args() -> argparse.Namespace:
     parser = get_parser()
     return parser.parse_known_args()[0]
 
+
 def get_agents(
-    args: argparse.Namespace = get_args(),
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
-    optim: Optional[torch.optim.Optimizer] = None,
+        args: argparse.Namespace = get_args(),
+        agent_learn: Optional[BasePolicy] = None,
+        agent_opponent: Optional[BasePolicy] = None,
+        optim: Optional[torch.optim.Optimizer] = None,
 ) -> Tuple[BasePolicy, torch.optim.Optimizer, list]:
     env = get_env()
     observation_space = env.observation_space['observation'] if isinstance(
@@ -139,17 +142,17 @@ def get_agents(
     policy = MultiAgentPolicyManager(agents, env)
     return policy, optim, env.agents
 
+
 def get_env():
     return PettingZooEnv(tictactoe_v3.env())
 
 
 def train_agent(
-    args: argparse.Namespace = get_args(),
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
-    optim: Optional[torch.optim.Optimizer] = None,
+        args: argparse.Namespace = get_args(),
+        agent_learn: Optional[BasePolicy] = None,
+        agent_opponent: Optional[BasePolicy] = None,
+        optim: Optional[torch.optim.Optimizer] = None,
 ) -> Tuple[dict, BasePolicy]:
-
     # ======== environment setup =========
     train_envs = DummyVectorEnv([get_env for _ in range(args.training_num)])
     test_envs = DummyVectorEnv([get_env for _ in range(args.test_num)])
@@ -227,11 +230,12 @@ def train_agent(
 
     return result, policy.policies[agents[args.agent_id - 1]]
 
+
 # ======== a test function that tests a pre-trained agent ======
 def watch(
-    args: argparse.Namespace = get_args(),
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
+        args: argparse.Namespace = get_args(),
+        agent_learn: Optional[BasePolicy] = None,
+        agent_opponent: Optional[BasePolicy] = None,
 ) -> None:
     env = get_env()
     policy, optim, agents = get_agents(
@@ -244,8 +248,9 @@ def watch(
     rews, lens = result["rews"], result["lens"]
     print(f"Final reward: {rews[:, args.agent_id - 1].mean()}, length: {lens.mean()}")
 
+
 if __name__ == "__main__":
     # train the agent and watch its performance in a match!
     args = get_args()
     result, agent = train_agent(args)
-    #watch(args, agent)
+    # watch(args, agent)

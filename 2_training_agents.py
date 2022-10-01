@@ -23,11 +23,50 @@ from tianshou.utils import TensorboardLogger
 from tianshou.utils.net.common import Net
 
 
-def train_agent(
+
+def _get_agents(
     agent_learn: Optional[BasePolicy] = None,
     agent_opponent: Optional[BasePolicy] = None,
     optim: Optional[torch.optim.Optimizer] = None,
-) -> Tuple[dict, BasePolicy]:
+) -> Tuple[BasePolicy, torch.optim.Optimizer, list]:
+    env = _get_env()
+    observation_space = env.observation_space['observation'] if isinstance(
+        env.observation_space, gym.spaces.Dict
+    ) else env.observation_space
+    if agent_learn is None:
+        # model
+        net = Net(
+            state_shape=observation_space.shape or observation_space.n,
+            action_shape=env.action_space.shape or env.action_space.n,
+            hidden_sizes=[128, 128, 128, 128],
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+        ).to('cuda' if torch.cuda.is_available() else 'cpu')
+        if optim is None:
+            optim = torch.optim.Adam(net.parameters(), lr=1e-4)
+        agent_learn = DQNPolicy(
+            model=net,
+            optim=optim,
+            discount_factor=0.9,
+            estimation_step=3,
+            target_update_freq=320
+        )
+
+    if agent_opponent is None:
+        agent_opponent = RandomPolicy()
+
+    agents = [agent_opponent, agent_learn]
+    policy = MultiAgentPolicyManager(agents, env)
+    return policy, optim, env.agents
+
+
+def _get_env():
+    """
+    This function is needed to provide callables for DummyVectorEnv
+    """
+    return PettingZooEnv(tictactoe_v3.env())
+
+
+if __name__ == "__main__":
 
     # ======== Step 1: Environment setup =========
     train_envs = DummyVectorEnv([_get_env for _ in range(10)])
@@ -41,9 +80,7 @@ def train_agent(
     test_envs.seed(seed)
 
     # ======== Step 2: Agent setup =========
-    policy, optim, agents = _get_agents(
-        agent_learn=agent_learn, agent_opponent=agent_opponent, optim=optim
-    )
+    policy, optim, agents = _get_agents()
 
     # ======== Step 3: Collector setup =========
     train_collector = Collector(
@@ -97,52 +134,6 @@ def train_agent(
         reward_metric=reward_metric
     )
 
-    return result, policy.policies[agents[1]]
-
-def _get_agents(
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
-    optim: Optional[torch.optim.Optimizer] = None,
-) -> Tuple[BasePolicy, torch.optim.Optimizer, list]:
-    env = _get_env()
-    observation_space = env.observation_space['observation'] if isinstance(
-        env.observation_space, gym.spaces.Dict
-    ) else env.observation_space
-    if agent_learn is None:
-        # model
-        net = Net(
-            state_shape=observation_space.shape or observation_space.n,
-            action_shape=env.action_space.shape or env.action_space.n,
-            hidden_sizes=[128, 128, 128, 128],
-            device='cuda' if torch.cuda.is_available() else 'cpu'
-        ).to('cuda' if torch.cuda.is_available() else 'cpu')
-        if optim is None:
-            optim = torch.optim.Adam(net.parameters(), lr=1e-4)
-        agent_learn = DQNPolicy(
-            model=net,
-            optim=optim,
-            discount_factor=0.9,
-            estimation_step=3,
-            target_update_freq=320
-        )
-
-    if agent_opponent is None:
-        agent_opponent = RandomPolicy()
-
-    agents = [agent_opponent, agent_learn]
-    policy = MultiAgentPolicyManager(agents, env)
-    return policy, optim, env.agents
-
-
-def _get_env():
-    """
-    This function is needed to provide callables for DummyVectorEnv
-    """
-    return PettingZooEnv(tictactoe_v3.env())
-
-
-
-
-# train the agent and watch its performance in a match!
-if __name__ == "__main__":
-    result, agent = train_agent()
+    #return result, policy.policies[agents[1]]
+    print(f"\n==========Result==========\n{result}")
+    print(f"\n(the trained policy can be accessed via policy.policies[agents[1]])")

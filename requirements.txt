@@ -1,0 +1,2 @@
+pettingzoo == 1.21.0
+git+https://github.com/Markus28/tianshou@support_pz

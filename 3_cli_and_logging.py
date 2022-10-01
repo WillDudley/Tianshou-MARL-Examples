@@ -1,3 +1,7 @@
+"""
+This is a full example of using Tianshou with MARL to train agents, complete with argument parsing (CLI) and logging.
+"""
+
 import argparse
 import os
 from copy import deepcopy
@@ -240,7 +244,8 @@ def watch(
     rews, lens = result["rews"], result["lens"]
     print(f"Final reward: {rews[:, args.agent_id - 1].mean()}, length: {lens.mean()}")
 
-# train the agent and watch its performance in a match!
-args = get_args()
-result, agent = train_agent(args)
-#watch(args, agent)
+if __name__ == "__main__":
+    # train the agent and watch its performance in a match!
+    args = get_args()
+    result, agent = train_agent(args)
+    #watch(args, agent)

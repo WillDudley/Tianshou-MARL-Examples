@@ -1,3 +1,7 @@
+"""
+This is a minimal example of using Tianshou with MARL to train agents.
+"""
+
 import argparse
 import os
 from copy import deepcopy
@@ -21,8 +25,6 @@ from tianshou.policy import (
 from tianshou.trainer import offpolicy_trainer
 from tianshou.utils import TensorboardLogger
 from tianshou.utils.net.common import Net
-
-
 
 def _get_agents(
     agent_learn: Optional[BasePolicy] = None,

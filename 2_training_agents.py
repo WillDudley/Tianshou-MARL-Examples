@@ -22,12 +22,89 @@ from tianshou.trainer import offpolicy_trainer
 from tianshou.utils import TensorboardLogger
 from tianshou.utils.net.common import Net
 
-def get_agents(
+
+def train_agent(
+    agent_learn: Optional[BasePolicy] = None,
+    agent_opponent: Optional[BasePolicy] = None,
+    optim: Optional[torch.optim.Optimizer] = None,
+) -> Tuple[dict, BasePolicy]:
+
+    # ======== Step 1: Environment setup =========
+    train_envs = DummyVectorEnv([_get_env for _ in range(10)])
+    test_envs = DummyVectorEnv([_get_env for _ in range(10)])
+
+    # seed
+    seed = 1
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    train_envs.seed(seed)
+    test_envs.seed(seed)
+
+    # ======== Step 2: Agent setup =========
+    policy, optim, agents = _get_agents(
+        agent_learn=agent_learn, agent_opponent=agent_opponent, optim=optim
+    )
+
+    # ======== Step 3: Collector setup =========
+    train_collector = Collector(
+        policy,
+        train_envs,
+        VectorReplayBuffer(20_000, len(train_envs)),
+        exploration_noise=True
+    )
+    test_collector = Collector(policy, test_envs, exploration_noise=True)
+    # policy.set_eps(1)
+    train_collector.collect(n_step=64 * 10)  # batch size * training_num
+
+    # ======== Step 4: Callback functions setup =========
+    def save_best_fn(policy):
+        model_save_path = os.path.join(
+            'log', 'rps', 'dqn', 'policy.pth'
+        )
+        os.makedirs(os.path.join('log', 'rps', 'dqn'), exist_ok=True)
+        torch.save(
+            policy.policies[agents[1]].state_dict(), model_save_path
+        )
+
+    def stop_fn(mean_rewards):
+        return mean_rewards >= 0.6
+
+    def train_fn(epoch, env_step):
+        policy.policies[agents[1]].set_eps(0.1)
+
+    def test_fn(epoch, env_step):
+        policy.policies[agents[1]].set_eps(0.05)
+
+    def reward_metric(rews):
+        return rews[:, 1]
+
+    # ======== Step 5: Run the trainer =========
+    result = offpolicy_trainer(
+        policy=policy,
+        train_collector=train_collector,
+        test_collector=test_collector,
+        max_epoch=50,
+        step_per_epoch=1000,
+        step_per_collect=50,
+        episode_per_test=10,
+        batch_size=64,
+        train_fn=train_fn,
+        test_fn=test_fn,
+        stop_fn=stop_fn,
+        save_best_fn=save_best_fn,
+        update_per_step=0.1,
+        test_in_train=False,
+        reward_metric=reward_metric
+    )
+
+    return result, policy.policies[agents[1]]
+
+def _get_agents(
     agent_learn: Optional[BasePolicy] = None,
     agent_opponent: Optional[BasePolicy] = None,
     optim: Optional[torch.optim.Optimizer] = None,
 ) -> Tuple[BasePolicy, torch.optim.Optimizer, list]:
-    env = get_env()
+    env = _get_env()
     observation_space = env.observation_space['observation'] if isinstance(
         env.observation_space, gym.spaces.Dict
     ) else env.observation_space
@@ -56,85 +133,15 @@ def get_agents(
     policy = MultiAgentPolicyManager(agents, env)
     return policy, optim, env.agents
 
-def get_env():
+
+def _get_env():
+    """
+    This function is needed to provide callables for DummyVectorEnv
+    """
     return PettingZooEnv(tictactoe_v3.env())
 
 
-def train_agent(
-    agent_learn: Optional[BasePolicy] = None,
-    agent_opponent: Optional[BasePolicy] = None,
-    optim: Optional[torch.optim.Optimizer] = None,
-) -> Tuple[dict, BasePolicy]:
 
-    # ======== environment setup =========
-    train_envs = DummyVectorEnv([get_env for _ in range(10)])
-    test_envs = DummyVectorEnv([get_env for _ in range(10)])
-
-    # seed
-    seed = 1
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    train_envs.seed(seed)
-    test_envs.seed(seed)
-
-    # ======== agent setup =========
-    policy, optim, agents = get_agents(
-        agent_learn=agent_learn, agent_opponent=agent_opponent, optim=optim
-    )
-
-    # ======== collector setup =========
-    train_collector = Collector(
-        policy,
-        train_envs,
-        VectorReplayBuffer(20_000, len(train_envs)),
-        exploration_noise=True
-    )
-    test_collector = Collector(policy, test_envs, exploration_noise=True)
-    # policy.set_eps(1)
-    train_collector.collect(n_step=64 * 10)  # batch size * training_num
-
-    # ======== callback functions used during training =========
-    def save_best_fn(policy):
-        model_save_path = os.path.join(
-            'log', 'rps', 'dqn', 'policy.pth'
-        )
-        os.makedirs(os.path.join('log', 'rps', 'dqn'), exist_ok=True)
-        torch.save(
-            policy.policies[agents[1]].state_dict(), model_save_path
-        )
-
-    def stop_fn(mean_rewards):
-        return mean_rewards >= 0.6
-
-    def train_fn(epoch, env_step):
-        policy.policies[agents[1]].set_eps(0.1)
-
-    def test_fn(epoch, env_step):
-        policy.policies[agents[1]].set_eps(0.05)
-
-    def reward_metric(rews):
-        return rews[:, 1]
-
-    # trainer
-    result = offpolicy_trainer(
-        policy=policy,
-        train_collector=train_collector,
-        test_collector=test_collector,
-        max_epoch=50,
-        step_per_epoch=1000,
-        step_per_collect=50,
-        episode_per_test=10,
-        batch_size=64,
-        train_fn=train_fn,
-        test_fn=test_fn,
-        stop_fn=stop_fn,
-        save_best_fn=save_best_fn,
-        update_per_step=0.1,
-        test_in_train=False,
-        reward_metric=reward_metric
-    )
-
-    return result, policy.policies[agents[1]]
 
 # train the agent and watch its performance in a match!
 if __name__ == "__main__":

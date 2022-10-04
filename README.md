@@ -1,4 +1,4 @@
-# Tianshou-MARL-Examples
+# Tianshou MARL Examples
 
 Uses Python3.8 and the dependencies outlined in `requirements.txt`.
 
